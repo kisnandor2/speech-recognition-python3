@@ -11,7 +11,6 @@ signal = np.fromstring(signal, 'Int16')
 fs = spf.getframerate()
 
 print(fs, len(signal))
-print(signal[0:10])
 
 Time=np.linspace(0, len(signal)/fs, num=len(signal))
 
