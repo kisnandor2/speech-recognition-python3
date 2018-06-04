@@ -31,7 +31,7 @@ class hmm:
 
 		self.pi = self._normalize(self.rand.rand(1, self.numberOfStates))[0,:]
 		self.A = self._stochasticize(self.rand.rand(self.numberOfStates, self.numberOfStates))
-
+		
 		self.mu = None
 		self.cov = None
 		self.nDim = None
@@ -40,7 +40,11 @@ class hmm:
 		return (x + (x == 0)) / np.sum(x)
 	
 	def _stochasticize(self, x):
-		return (x + (x == 0)) / np.sum(x, axis=1)
+		for i in range(x.shape[0]):
+			s = x[i,:].sum()
+			s = s + (s == 0)
+			x[i,:] /= s
+		return x
 
 	def _calculateAlfa(self, B):
 		# Forward alg.
@@ -51,6 +55,7 @@ class hmm:
 			if t == 0:
 				alfa[t,:] = B[:, t] * self.pi
 			else:
+				# TODO!! check if self.A or self.A.T
 				alfa[t, :] = B[:, t] * np.dot(self.A, alfa[t-1,:])
 			alfaSum = np.sum(alfa[t,:])
 			alfa[t,:] = alfa[t,:] / alfaSum
@@ -65,7 +70,7 @@ class hmm:
 		for t in range(T-2, -1, -1):
 			beta[t, :] = np.dot(self.A, (B[:, t+1] * beta[t+1, :]))
 			beta[t, :] = beta[t, :] / np.sum(beta[t, :])
-		beta[-1, :] = beta[-1, :] / np.sum(beta[-1, :])
+		# beta[-1, :] = beta[-1, :] / np.sum(beta[-1, :])
 		return beta
 
 	def _initB(self, obs):
@@ -92,32 +97,28 @@ class hmm:
 		T = obs.shape[1]
 		B = self._initB(obs)
 
-		xi = np.zeros((T-1, self.numberOfStates, self.numberOfStates)) # T db n*n-es matrix
-		gamma = np.zeros((self.numberOfStates, T))
+		# xi = np.zeros((T-1, self.numberOfStates, self.numberOfStates)) # T db n*n-es matrix
+		# gamma = np.zeros((self.numberOfStates, T))
 
 		alfa, logLikelihood = self._calculateAlfa(B)
-		beta = self._calculateBeta(B)
+		alfa = alfa.T
+		beta = self._calculateBeta(B).T
 
-		xi_denominator = np.zeros(T-1)
+		xi_sum = np.zeros((self.numberOfStates, self.numberOfStates))
+		gamma = np.zeros((self.numberOfStates, T))
 		
-		for t in range(T - 1):	
-			for i in range(self.numberOfStates):
-				for j in range(self.numberOfStates):
-					xi[t, i, j] = alfa[t, i] * self.A[i, j] * B[j, t+1] * beta[t+1, j]
-					xi_denominator[t] += xi[t,i,j]
-			xi[t] /= xi_denominator[t]
-	
-		gamma = xi.sum(axis=2)		
-		gammaSum = gamma.sum(axis=0)
-		# Calculate new A matrix based on xi and gamma
-		for i in range(self.numberOfStates):
-			for j in range(self.numberOfStates):
-				self.A[i, j] = xi[:, i, j].sum() / gammaSum[i]
-		# Calculate new pi vector based on gamma
-		self.pi = gamma[0,:]
-		# Calculate new B matrix based on gamma
-		# Better: calculate new B based on N dimensional Gauss Distribution(mu vector and cov matrix needed)!!
-		gamma = gamma.T
+		for t in range(T - 1):
+			partial_sum = self.A * np.dot(alfa[:, t], (beta[:, t] * B[:, t + 1]).T)
+			xi_sum += self._normalize(partial_sum)
+			partial_g = alfa[:, t] * beta[:, t]
+			gamma[:, t] = self._normalize(partial_g)
+			  
+		partial_g = alfa[:, -1] * beta[:, -1]
+		gamma[:, -1] = self._normalize(partial_g)
+		
+		expected_prior = gamma[:, 0]
+		expected_A = self._stochasticize(xi_sum)
+		
 		expected_mu = np.zeros((self.nDim, self.numberOfStates))
 		expected_covs = np.zeros((self.nDim, self.nDim, self.numberOfStates))
 		
@@ -125,19 +126,47 @@ class hmm:
 		#Set zeros to 1 before dividing
 		gamma_state_sum = gamma_state_sum + (gamma_state_sum == 0)
 		
-		obs = obs[:, :-1]
 		for s in range(self.numberOfStates):
 			gamma_obs = obs * gamma[s, :]
 			expected_mu[:, s] = np.sum(gamma_obs, axis=1) / gamma_state_sum[s]
-			partial_covs = np.dot(gamma_obs, obs.T) / gamma_state_sum[s] - np.dot(expected_mu[:, s], expected_mu[:, s].T)
-			#Symmetrize
-			partial_covs = np.triu(partial_covs) + np.triu(partial_covs).T - np.diag(partial_covs)
+			partial_cov = np.dot(gamma_obs, obs.T) / gamma_state_sum[s] - np.dot(expected_mu[:,s], expected_mu[:,s].T)
+			expected_covs[:,:,s] = np.triu(partial_cov) + np.triu(partial_cov).T - np.diag(partial_cov)
+		
+		#Ensure positive semidefinite by adding diagonal loading
 		for i in range(self.numberOfStates):
 			expected_covs[:,:,i] += .01 * np.eye(self.nDim)
-		self.mu = expected_mu
-		self.cov = expected_covs
 
-	def fit(self, obs):
-		B = self._initB(obs)
-		_, log_likelihood = self._calculateAlfa(B)
-		return log_likelihood
+		self.prior = expected_prior
+		self.mu = expected_mu
+		self.covs = expected_covs
+		self.A = expected_A
+		return logLikelihood
+
+	def fit(self, obs, n_iter=15):
+		if len(obs.shape) == 2:
+			for i in range(n_iter):
+				self._emInit(obs)
+				log_likelihood = self._emStep(obs)
+		elif len(obs.shape) == 3:
+			count = obs.shape[0]
+			T = obs[0]
+			for n in range(count):
+				if n > 0:
+					T = np.concatenate((T, obs[n]), axis=1)
+			self._emInit(obs[n, :, :])
+			log_likelihood = self._emStep(obs[n, :, :])
+		return self
+	
+	def transform(self, obs):      
+		if len(obs.shape) == 2:
+			B = self._initB(obs)
+			_, log_likelihood = self._calculateAlfa(B)
+			return log_likelihood
+		elif len(obs.shape) == 3:
+			count = obs.shape[0]
+			out = np.zeros((count,))
+			for n in range(count):
+				B = self._initB(obs[n, :, :])
+				_, log_likelihood = self._calculateAlfa(B)
+				out[n] = log_likelihood
+			return out

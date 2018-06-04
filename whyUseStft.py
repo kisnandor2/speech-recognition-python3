@@ -38,9 +38,10 @@ def peakFind(x, numberOfPeaks=6, leftSize=3, centerSize=3, rightSize=3, fn=np.me
 	locations, values = zip(*r)
 	return np.array(locations)[:numberOfPeaks], np.array(values)[:numberOfPeaks]
 		
-# fig, axs = plt.subplots(10,1)
+a = stft(data[0,:], fs = 8000)
+# fig, axs = plt.subplots(5,1)
 
-# for i in range(10):
+# for i in range(5):
 # 	print(i)
 # 	p = a[i,:]
 # 	locations, values = peakFind(p)
@@ -50,17 +51,15 @@ def peakFind(x, numberOfPeaks=6, leftSize=3, centerSize=3, rightSize=3, fn=np.me
 # 	axs[i].plot(locations, values, 'x', color='red')
 # plt.show()
 
-a = stft(data[0,:], fs = 8000)
-
-# x = data[0,:]
-# w = scipy.hanning(x.shape[0])
-# X = scipy.fft(x*w)
-# X = X[:(X.shape[0]//2)]
+x = data[0,:]
+w = scipy.hanning(x.shape[0])
+X = scipy.fft(x*w)
+X = X[:(X.shape[0]//2)]
 
 plt.figure(1)
 
 plt.subplot(211)
-plt.plot(a[0:100,:])
+plt.plot(a)
 
 plt.subplot(212)
 plt.plot(data[0,:])

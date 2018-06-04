@@ -22,6 +22,8 @@ def peakFind(x, numberOfPeaks=6, leftSize=3, centerSize=3, rightSize=3, fn=np.me
 		location, value = isPeak(x[i:i+windowSize])
 		if location > -1:
 			location += i
+		else:
+			value = 1
 		r.append((location, value))
 	r.sort(key=lambda tup: tup[1])
 	r = r[::-1]
@@ -59,12 +61,12 @@ if __name__ == '__main__':
 	data = data[:, :dmax]
 
 	# Get labels
-	# print('Number of files total:', data.shape[0])
-	# all_labels = np.zeros(data.shape[0])
-	# for n, l in enumerate(set(labels)):
-	#     all_labels[np.array([i for i, _ in enumerate(labels) if _ == l])] = n
+	print('Number of files total:', data.shape[0])
+	all_labels = np.zeros(data.shape[0])
+	for n, l in enumerate(set(labels)):
+	    all_labels[np.array([i for i, _ in enumerate(labels) if _ == l])] = n
 		
-	# print('Labels and label indices', all_labels)
+	print('Labels and label indices', all_labels)
 
 	# Get observations
 	obsFileName = 'obs.npy'
@@ -84,16 +86,36 @@ if __name__ == '__main__':
 			allObservations.append(obs)
 		
 		allObservations = np.array(allObservations)
+		# Stochasticise observations(sum col = 1)
+		for i in range(allObservations.shape[0]):
+			allObservations[i] /= allObservations[i].sum(axis=0)
 		np.save('obs', allObservations)
 
-	# Stochasticise observations(sum col = 1)
-	for i in range(allObservations.shape[0]):
-		allObservations[i] /= allObservations[i].sum(axis=0)
+	from sklearn.cross_validation import StratifiedShuffleSplit
+	sss = StratifiedShuffleSplit(all_labels, test_size=0.1, random_state=0)
 
-	h = hmm(6)
-	h._emInit(allObservations[0])
-	for i in range(20):
-		h._emStep(allObservations[0])
-	print(h.A.sum(axis=1))
-	print(h.fit(allObservations[26]))
-	
+	all_obs = allObservations
+	for train_index, test_index in sss:
+	    X_train, X_test = all_obs[train_index, ...], all_obs[test_index, ...]
+	    y_train, y_test = all_labels[train_index], all_labels[test_index]
+
+	ys = set(all_labels)
+	# ms = [hmm(6) for y in ys]
+	# _ = [m.fit(X_train[y_train == y, :, :]) for m, y in zip(ms, ys)]
+	# ps = [m.transform(X_test) for m in ms]
+	# res = np.vstack(ps)
+	# predicted_labels = np.argmax(res, axis=0)
+	# missed = (predicted_labels != y_test)
+	# print('Test accuracy: %.2f percent' % (100 * (1 - np.mean(missed))))
+
+	from hmmlearn import hmm
+	h = hmm.GMMHMM(n_components=6)
+	d = X_train[y_train == 1, :, :]
+	t = d[0]
+	for i in range(d.shape[0]):
+		if i > 0:
+			t = np.concatenate((t, d[i]), axis=1)
+	print(t.shape)
+	h.fit(X_train[0])
+	print(h.predict(X_train[30]))
+
