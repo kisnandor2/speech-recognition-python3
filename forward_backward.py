@@ -26,7 +26,7 @@ pi = [0.3, 0.6]
 class hmm:
 
 	def __init__(self, numberOfStates):
-		self.rand = np.random.RandomState(0)
+		self.rand = np.random#.RandomState(0)
 		self.numberOfStates = numberOfStates
 
 		self.pi = self._normalize(self.rand.rand(1, self.numberOfStates))[0,:]
@@ -53,7 +53,7 @@ class hmm:
 		alfa = np.zeros((T, self.numberOfStates))
 		for t in range(T):
 			if t == 0:
-				alfa[t,:] = B[:, t] * self.pi
+				alfa[t,:] = B[:, t] * self.pi				
 			else:
 				# TODO!! check if self.A or self.A.T
 				alfa[t, :] = B[:, t] * np.dot(self.A, alfa[t-1,:])
@@ -76,8 +76,8 @@ class hmm:
 	def _initB(self, obs):
 		B = np.zeros((self.numberOfStates, obs.shape[1]))
 		for i in range(self.numberOfStates):
-			np.random.seed(self.rand.randint(1))
-			B[i, :] = stat.multivariate_normal.pdf(obs.T, mean=self.mu[:, i].T, cov=self.cov[:, :, i].T)
+			# np.random.seed(self.rand.randint(1))
+			B[i, :] = stat.multivariate_normal.pdf(obs.T, mean=self.mu[:, i].T, cov=self.cov[:, :, i])
 		return B
 
 	def _emInit(self, obs):
@@ -91,6 +91,7 @@ class hmm:
 		if self.mu is None:
 			r = self.rand.choice(np.arange(self.nDim), size=self.numberOfStates, replace=False)
 			self.mu = obs[:, r]
+
 
 
 	def _emStep(self, obs):
@@ -153,8 +154,8 @@ class hmm:
 			for n in range(count):
 				if n > 0:
 					T = np.concatenate((T, obs[n]), axis=1)
-			self._emInit(obs[n, :, :])
-			log_likelihood = self._emStep(obs[n, :, :])
+			self._emInit(T)
+			log_likelihood = self._emStep(T)
 		return self
 	
 	def transform(self, obs):      
