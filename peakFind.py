@@ -100,10 +100,11 @@ def extractFeatures(x):
 		realLocs = realLocs.flatten().astype(int)
 		# if i > 83:
 		# 	print(realLocs)
-		# 	print(X[realLocs])
+			# print(X[realLocs])
 		# 	print(f[realLocs])
-		# 	plt.plot(X)
-		# 	plt.show()
+		# plt.plot(X)
+		# plt.plot(locs, 'x', color='red')
+		# plt.show()
 		frameFrequencies[:,i] = f[realLocs]
 		i += 1
 	return frameFrequencies

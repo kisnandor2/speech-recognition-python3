@@ -38,7 +38,7 @@ if __name__ == '__main__':
 		# Random generate test and train data indexes
 		rand = np.random
 		n = 15
-		testCount = 1
+		testCount = 3
 		randTrain = np.zeros((n-testCount, 7))
 		randTest = np.zeros((testCount, 7))
 		for i in range(7):
@@ -73,9 +73,9 @@ if __name__ == '__main__':
 				maxLikelihood = -np.inf
 				index = -1
 				# Get the max likelihood for all classes
+				obs = extractFeatures(data[k,:length[k]])
 				for l in range(7):
 					h = hmms[l]
-					obs = extractFeatures(data[k,:length[k]])
 					likelihood = h.transform(obs)
 					# Select the class wihch gives the highest likelihood
 					if likelihood > maxLikelihood:

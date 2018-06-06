@@ -25,8 +25,8 @@ pi = [0.3, 0.6]
 
 class hmm:
 
-	def __init__(self, numberOfStates):
-		self.rand = np.random#.RandomState(0)
+	def __init__(self, numberOfStates, cls):
+		self.rand = np.random
 		self.numberOfStates = numberOfStates
 
 		self.pi = self._normalize(self.rand.rand(1, self.numberOfStates))[0,:]
@@ -35,6 +35,8 @@ class hmm:
 		self.mu = None
 		self.cov = None
 		self.nDim = None
+
+		self.cls = cls
 
 	def _normalize(self, x):
 		return (x + (x == 0)) / np.sum(x)
@@ -56,7 +58,7 @@ class hmm:
 				alfa[t,:] = B[:, t] * self.pi				
 			else:
 				# TODO!! check if self.A or self.A.T
-				alfa[t, :] = B[:, t] * np.dot(self.A, alfa[t-1,:])
+				alfa[t, :] = B[:, t] * np.dot(self.A.T, alfa[t-1,:])
 			alfaSum = np.sum(alfa[t,:])
 			alfa[t,:] = alfa[t,:] / alfaSum
 			logLikelihood += np.log(alfaSum)
@@ -76,7 +78,6 @@ class hmm:
 	def _initB(self, obs):
 		B = np.zeros((self.numberOfStates, obs.shape[1]))
 		for i in range(self.numberOfStates):
-			# np.random.seed(self.rand.randint(1))
 			B[i, :] = stat.multivariate_normal.pdf(obs.T, mean=self.mu[:, i].T, cov=self.cov[:, :, i])
 		return B
 
@@ -144,30 +145,15 @@ class hmm:
 		return logLikelihood
 
 	def fit(self, obs, n_iter=15):
-		if len(obs.shape) == 2:
-			for i in range(n_iter):
-				self._emInit(obs)
-				log_likelihood = self._emStep(obs)
-		elif len(obs.shape) == 3:
-			count = obs.shape[0]
-			T = obs[0]
-			for n in range(count):
-				if n > 0:
-					T = np.concatenate((T, obs[n]), axis=1)
-			self._emInit(T)
-			log_likelihood = self._emStep(T)
+		print(self.cls)
+		for i in range(n_iter):
+			self._emInit(obs)
+			log_likelihood = self._emStep(obs)
+			print('Likelihood = ', log_likelihood)
 		return self
 	
-	def transform(self, obs):      
-		if len(obs.shape) == 2:
-			B = self._initB(obs)
-			_, log_likelihood = self._calculateAlfa(B)
-			return log_likelihood
-		elif len(obs.shape) == 3:
-			count = obs.shape[0]
-			out = np.zeros((count,))
-			for n in range(count):
-				B = self._initB(obs[n, :, :])
-				_, log_likelihood = self._calculateAlfa(B)
-				out[n] = log_likelihood
-			return out
+	def transform(self, obs):  
+		B = self._initB(obs)
+		_, log_likelihood = self._calculateAlfa(B)
+		return log_likelihood
+	
